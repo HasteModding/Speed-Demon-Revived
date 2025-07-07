@@ -1,0 +1,52 @@
+{
+    "UnfinishedEffect_description": {
+      "default": "<color=#bb0000>No description set for this effect yet</color>"
+    },
+    "CooldownReductionPerBoostEPE_description": {
+      "default": "<color=#add2f8>-0.1s</color> to all Cooldowns per 100% <color=#e4e45b>Boost</color>"
+    },
+    "RegenerationPerBoostEPE_description": {
+      "default": "<color=#02ab02>Restore 1</color> <color=#e4e45b>Health</color> per 50% <color=#e4e45b>Boost</color>"
+    },
+    "NEW_BoostIfLastLandingWasPerfectEILLP_description": {
+      "default": "<color=#02ab02>+50%</color> <color=#e4e45b>Boost</color>"
+    },
+    "BoostPerMissingHealthEPMH_description": {
+      "default": "Gain 1% <color=#e4e45b>Boost</color> per missing <color=#e4e45b>Health</color>"
+    },
+    "LuckPerMissingHealthEPMH_description": {
+      "default": "<color=#02ab02>+1.5%</color> <color=#e4e45b>Luck</color> per <color=#e4e45b>Missing Health</color>"
+    },
+    "Stats_LuckOnFullHealthLETE_description": {
+      "default": "Up to <color=#02ab02>+70%</color> <color=#e4e45b>Luck</color> at <color=#a3c5e8>Full Health</color>"
+    },
+    "GetBoostAtFullHealthLETE_description": {
+      "default": "Up to <color=#02ab02>+40%</color> <color=#e4e45b>Boost</color> at <color=#a3c5e8>Full Health</color>"
+    },
+    "BoostPerPerfectLandingStreakSLS_description": {
+      "default": "<color=#02ab02>+5%</color> <color=#e4e45b>Boost</color> for each consecutive <color=#f0ca04>Perfect Landing</color>"
+    },
+    "RandomChanceToGetLuckEPL_description": {
+      "default": "Gain <color=#c896fa>Sparks</color> equal to your <color=#e4e45b>Luck</color>"
+    },
+    "SD_ReduceRefreshCostEffect_description": {
+      "default": "<color=#e4e45b>Luck</color> reduces the cost of <color=#c896fa>Refreshing</color>"
+    },
+    "BoostPerSparkEPE_description": {
+      "default": "<color=#02ab02>+3%</color> <color=#e4e45b>Boost</color> per <color=#e2b96b>100</color> <color=#c896fa>Sparks</color>"
+    },
+    "SD_SpeedOnPerfectLandingStreakEILLP_description": {
+      "default": "<color=#02ab02>Gain 10</color> <color=#e4e45b>Speed</color>"
+    },
+    
+    "SD_EpicPermanentBoostDSE_description": {
+      "default": "<color=#02ab02>1.25x</color> <color=#e4e45b>Boost</color>, <color=#cf2a2a>1.1x</color> <color=#cf680c>Damage Taken</color>"
+    },
+
+    "NEW_RegenWithSpeed_Threshold_triggerDesc":{
+      "default": "<color=#add2f8>Cooldown</color>, If <color=#e4e45b>Boost</color> is greater than <color=#02ab02>100%</color>"
+    },
+    "SD_SpeedOnPerfectLandingStreak_triggerDesc":{
+      "default": "On <color=#f0ca04>Perfect Landings</color>, If <color=#a4c7eb>Last Landing</color> was <color=#f0ca04>Perfect</color>"
+    }
+}
