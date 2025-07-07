@@ -19,51 +19,58 @@ namespace SpeedDemon
         static ItemReward()
         {
             Debug.Log("[SpeedDemon] ItemReward class initializing...");
-            On.RunHandler.OnLevelCompleted += (orig) =>
+            On.RunHandler.TransitionOnLevelCompleted += (orig) =>
             {
                 Debug.Log("[SpeedDemon] Level Completed, preparing next scene");
                 // Pass back to the original method if we aren't in Endless
-                if (!RunHandler.RunData.isEndless || !RunHandler.InRun)
+                if (!RunHandler.RunData.runConfig.isEndless || !RunHandler.InRun)
                 {
                     orig();
                     return;
                 }
+
                 // Per Level Healing - 25 health per level
                 typeof(Player).GetMethod("AddHealth", BindingFlags.Instance | BindingFlags.NonPublic)
                     .Invoke(Player.localPlayer, [25f]);
+
                 // Per Level Lives - max lives per level
                 Player.localPlayer.EditLives(1);
+
                 // Counters
-                RunHandler.RunData.currentLevelID++;
-                RunHandler.RunData.currentLevel++;
+                // TODO : Fix this! It's supposed to be the counters for the run data, but since Stevelion, the codebase changed.
+                /*RunHandler.RunData.currentLevelID++;
+                RunHandler.RunData.currentLevel++;*/
+
                 // Temporary Sparks
                 Player.localPlayer.data.resource += Player.localPlayer.data.temporaryResource;
+
                 // Reward Flag
+                HasteStats.SetStat(HasteStatType.STAT_ENDLESS_HIGHSCORE, RunHandler.RunData.currentLevel, true, false, false);
+                HasteStats.OnLevelComplete();
+
                 bool reward = RunHandler.RunData.currentLevel == 1 || RunHandler.RunData.currentLevel % 2 == 0;
                 currentRewardIsEpic = RunHandler.RunData.currentLevel == 1 || RunHandler.RunData.currentLevel % 10 == 0;
                 // Load the next scene (whichever it is)
                 if (reward)
                 {
-                    SceneManager.LoadScene("EndlessAwardScene");
-                }
-                else
-                {
-                    RunHandler.configOverride = null;
-                    typeof(RunHandler).GetMethod("LoadLevelScene", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+                    UI_TransitionHandler.instance.Transition(delegate
+                    {
+                        SceneManager.LoadScene("EndlessAwardScene");
+                    }, "Dots", 0.3f, 0.5f, null);
+                    return;
                 }
                 // Finish up and move on to the next level
-                HasteStats.SetStat(HasteStatType.STAT_ENDLESS_HIGHSCORE, RunHandler.RunData.currentLevel, true, false, false);
-                HasteStats.OnLevelComplete();
+                RunHandler.RunData.currentNodeStatus = NGOPlayer.PlayerNodeStatus.PostLevelScreenComplete;
             };
 
             On.EndlessAward.Start += (orig, self) => // Overwrite Endless mode reward scene
             {
-                SpeedDemonAward();
+                SpeedDemonAward(Player.localPlayer);
             };
 
-            On.UnlockScreen.GivePlayerItem += (orig, self, item) => // Hook GivePlayerItem to allow for custom handling for refresh item
+            On.UnlockScreen.GivePlayerItem += (orig, self, player, item) => // Hook GivePlayerItem to allow for custom handling for refresh item
             {
-                if (RunHandler.RunData.isEndless) // Overwrite scene change logic for Endless mode
+                if (RunHandler.RunData.runConfig.isEndless) // Overwrite scene change logic for Endless mode
                 {
                     if (item.name == "SD_Refresh") // If the player chose refresh, get new items and take away some sparks
                     {
@@ -78,19 +85,19 @@ namespace SpeedDemon
                         currentLevelRandomInstance = null!; // reset the vars we were storing for this reward
                         currentRewardIsEpic = false;
                         isRefreshing = false;
-                        orig(self, item);
+                        orig(self, player, item);
                     }
                 }
                 else
                 {
-                    orig(self, item);
+                    orig(self, player, item);
                 }
             };
 
-            On.GM_API.PlayerEnteredPortal += (orig) =>
+            On.GM_API.OnPlayerEnteredPortal += (orig, player) =>
             {
                 refreshCost.UpdateRefreshCR();
-                orig();
+                orig(player);
             };
 
             On.RunHandler.StartNewRun += (orig, setConfig, shardID, seed) =>
@@ -153,7 +160,7 @@ namespace SpeedDemon
         }
         public static RefreshCost refreshCost = new RefreshCost();
 
-        public static void SpeedDemonAward()
+        public static void SpeedDemonAward(Player player)
         {
             ItemInstance refreshItem = CustomItems.CustomItems.templateRefreshItem;
             // It might be worth adding a sanity check to make sure we actually found the refresh item
@@ -184,9 +191,10 @@ namespace SpeedDemon
                 Debug.Log("[SpeedDemon] Adding refresh item because player can afford it");
                 UnlockScreen.me.AddItem(refreshItem);
             }
+
             // I have no idea what this does :)
             UnlockScreen.me.chooseItem = true;
-            UnlockScreen.me.FinishAddingPhase(new Action (PlayLevelIfDone));
+            UnlockScreen.me.FinishAddingPhase(player, PlayLevelIfDone);
         }
 
         public static ItemInstance GetRandomItem(System.Random random, bool epicReward)
@@ -222,10 +230,10 @@ namespace SpeedDemon
 
         public static void PlayLevelIfDone()
         {
-            Debug.Log($"isRefreshing is {isRefreshing}");
+            Debug.Log($"[SpeedDemon] isRefreshing is {isRefreshing}");
             if (!isRefreshing)
             {
-                new Action(RunHandler.PlayLevel).Invoke();
+                RunHandler.RunData.currentNodeStatus = NGOPlayer.PlayerNodeStatus.PostLevelScreenComplete;
             }
             else
             {

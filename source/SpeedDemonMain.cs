@@ -19,7 +19,7 @@ namespace SpeedDemon
             Debug.Log("[SpeedDemon] SpeedDemonMain class initializing...");
             On.RunHandler.GetLevelSpeed += (orig) => // Custom corruption speed
             {
-                if (RunHandler.RunData.isEndless)
+                if (RunHandler.RunData.runConfig.isEndless)
                 {
                     float startingSpeed = GameHandler.Instance.SettingsHandler.GetSetting<SD_StartingSpeedSetting>().Value;
                     float rampSpeed = GameHandler.Instance.SettingsHandler.GetSetting<SD_RampSpeedSetting>().Value;
@@ -80,22 +80,22 @@ namespace SpeedDemon
                 }
             };
 
-            On.GM_API.PlayerEnteredPortal += (orig) =>
+            On.GM_API.OnPlayerEnteredPortal += (orig, player) =>
             {
-                playerEndLevelSpeed = PlayerCharacter.localPlayer.refs.rig.velocity.magnitude;
-                orig();
+                playerEndLevelSpeed = player.character.refs.rig.velocity.magnitude;
+                orig(player);
             };
 
-            On.RunHandler.WinRun += (orig, transitionOutOverride) =>
+            On.RunHandler.WinRun += (orig, transitionOutOverride, transitionEffectDelay) =>
             {
                 playerEndLevelSpeed = 0f;
-                orig(transitionOutOverride);
+                orig(transitionOutOverride, transitionEffectDelay);
             };
 
-            On.RunHandler.LoseRun += (orig, transitionOutOverride) =>
+            On.RunHandler.LoseRun += (orig, transitionOutOverride, transitionEffectDelay) =>
             {
                 playerEndLevelSpeed = 0f;
-                orig(transitionOutOverride);
+                orig(transitionOutOverride, transitionEffectDelay);
             };
 
             On.DifficultyPresetSetting.SetValue += (orig, self, v, settingHandler) =>
@@ -123,7 +123,7 @@ namespace SpeedDemon
 
         private static void OnNewLevel()
         {
-            if (RunHandler.RunData.isEndless)
+            if (RunHandler.RunData.runConfig.isEndless)
             {
                 float startLevelSpeed = Mathf.Max(playerEndLevelSpeed, PlayerCharacter.localPlayer.refs.rig.velocity.magnitude);
                 Vector3 newVelocity = PlayerCharacter.localPlayer.refs.rig.velocity.normalized * startLevelSpeed;

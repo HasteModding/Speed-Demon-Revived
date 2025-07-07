@@ -100,7 +100,7 @@ namespace SpeedDemon.CustomItems
             {
                 for (int i = 0; i < effects.Count; i++)
                 {
-                    effects[i].TriggerEffect(this);
+                    effects[i].TriggerEffect(Player.localPlayer, this);
                 }
             }
             lastLanding = PlayerCharacter.localPlayer.data.landingThisFrame;
