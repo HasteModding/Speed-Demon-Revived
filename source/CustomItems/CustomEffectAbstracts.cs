@@ -238,13 +238,13 @@ namespace SpeedDemon.CustomItems
         public void Awake()
         {
             typeof(Player).GetMethod("AddStats", BindingFlags.Instance | BindingFlags.NonPublic)
-                .Invoke(Player.localPlayer, new object[] { stats });
+                .Invoke(Player.localPlayer, new object[] { stats, true, 1f });
         }
 
         public void OnDestroy()
         {
             typeof(Player).GetMethod("RemoveStats", BindingFlags.Instance | BindingFlags.NonPublic)
-                .Invoke(Player.localPlayer, new object[] { stats });
+                .Invoke(Player.localPlayer, new object[] { stats, true, 1f });
         }
 
         public PlayerStats stats = null!;
