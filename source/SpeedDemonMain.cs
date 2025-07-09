@@ -5,27 +5,26 @@ using System.Reflection;
 using Zorro.Settings;
 using Unity.Mathematics;
 using UnityEngine.Localization;
-using MonoMod.Cil;
+using SpeedDemon.Difficulties;
 
 namespace SpeedDemon
 {
     [LandfallPlugin]
     public class SpeedDemonMain
     {
-
         static public float playerEndLevelSpeed = 0f;
 
         static SpeedDemonMain()
         {
             Debug.Log("[SpeedDemon] SpeedDemonMain class initializing...");
+
             On.RunHandler.GetLevelSpeed += (orig) => // Custom corruption speed
             {
                 if (SD_API.InSpeedDemonRun)
                 {
-                    float startingSpeed = GameHandler.Instance.SettingsHandler.GetSetting<SD_StartingSpeedSetting>().Value;
-                    float rampSpeed = GameHandler.Instance.SettingsHandler.GetSetting<SD_RampSpeedSetting>().Value;
+                    float startingSpeed = SD_API.StartingSpeed;
+                    float rampSpeed = SD_API.RampSpeed;
                     float speed = (startingSpeed + rampSpeed * (RunHandler.RunData.currentLevel / 2));
-                    //Debug.Log($"[SpeedDemon] Corruption speed is {speed}");
                     return speed;
                 }
                 else
@@ -133,27 +132,34 @@ namespace SpeedDemon
                 self.unlockedItems.AddRange(CustomItems.SpeedDemonItems.RewardableItems);
             };
 
-            On.DifficultyPresetSetting.SetValue += (orig, self, v, settingHandler) =>
+            On.WorldShard.PlayLevel += (orig, self) =>
             {
-                SD_StartingSpeedSetting sD_StartingSpeedSetting = GameHandler.Instance.SettingsHandler.GetSetting<SD_StartingSpeedSetting>();
-                SD_RampSpeedSetting sD_RampSpeedSetting = GameHandler.Instance.SettingsHandler.GetSetting<SD_RampSpeedSetting>();
-                if (v == DifficultyPresetSetting.Presets.Easy)
+                if (self.isEndlessShard)
                 {
-                    sD_StartingSpeedSetting.SetValue(12f, settingHandler, false);
-                    sD_RampSpeedSetting.SetValue(85f, settingHandler, false);
+                    var config = self.SelectableRunConfigs[2];
+
+                    string jsonConfig = JsonUtility.ToJson(config);
+                    Debug.Log("[SpeedDemon] Selectable Run Config : " + jsonConfig);
+
+                    string jsonRunConfig = JsonUtility.ToJson(config.runConfig);
+                    Debug.Log("[SpeedDemon] Run Config : " + jsonRunConfig);
+
+                    foreach (LevelGenConfig genConf in config.runConfig.categories)
+                    {
+                        string jsonLevenGenConfig = JsonUtility.ToJson(genConf);
+                        Debug.Log("[SpeedDemon] genConf : " + genConf.name + jsonLevenGenConfig);
+                    }
+
+                    string jsonMusicPlaylist = JsonUtility.ToJson(config.runConfig.musicPlaylist);
+                    Debug.Log("[SpeedDemon] MusicPlaylist : " + config.runConfig.musicPlaylist.name + jsonMusicPlaylist);
                 }
-                if (v == DifficultyPresetSetting.Presets.Medium)
-                {
-                    sD_StartingSpeedSetting.SetValue(90f, settingHandler, false);
-                    sD_RampSpeedSetting.SetValue(15f, settingHandler, false);
-                }
-                if (v == DifficultyPresetSetting.Presets.Hard)
-                {
-                    sD_StartingSpeedSetting.SetValue(95f, settingHandler, false);
-                    sD_RampSpeedSetting.SetValue(18f, settingHandler, false);
-                }
-                orig(self, v, settingHandler);
+                orig(self);
             };
+        }
+
+        private static void ShardSettingsUI_Open(On.ShardSettingsUI.orig_Open orig, ShardSettingsUI self, WorldShard worldShard)
+        {
+            throw new NotImplementedException();
         }
 
         private static void OnNewLevel()
@@ -183,48 +189,6 @@ namespace SpeedDemon
                 Debug.Log($"[SpeedDemon] Speed Demon run has ended, setting fact");
                 SD_API.InSpeedDemonRun = false;
             }
-        }
-    }
-
-    [HasteSetting]
-    public class SD_StartingSpeedSetting : FloatSetting, IExposedSetting, IConditionalSetting
-    {
-        public override void ApplyValue()
-        {
-            Debug.Log($"[SpeedDemon] Setting Starting Speed to {Value}");
-        }
-        protected override float GetDefaultValue() => 90f;
-        protected override float2 GetMinMaxValue() => new float2(80f, 100f);
-        public LocalizedString GetDisplayName() => new UnlocalizedString("[SD] Collapse Starting Speed");
-        public string GetCategory() => "Difficulty";
-        public override string Expose(float result)
-        {
-            return Mathf.RoundToInt(result).ToString() + "m/s";
-        }
-        public bool CanShow()
-        {
-            return GameDifficulty.CanChangeSettings();
-        }
-    }
-
-    [HasteSetting]
-    public class SD_RampSpeedSetting : FloatSetting, IExposedSetting, IConditionalSetting
-    {
-        public override void ApplyValue()
-        {
-            Debug.Log($"[SpeedDemon] Setting Ramp Speed to {Value}");
-        }
-        protected override float GetDefaultValue() => 15f;
-        protected override float2 GetMinMaxValue() => new float2(10f, 20f);
-        public LocalizedString GetDisplayName() => new UnlocalizedString("[SD] Collapse Ramp Speed");
-        public string GetCategory() => "Difficulty";
-        public override string Expose(float result)
-        {
-            return Mathf.RoundToInt(result).ToString() + "m/s";
-        }
-        public bool CanShow()
-        {
-            return GameDifficulty.CanChangeSettings();
         }
     }
 }

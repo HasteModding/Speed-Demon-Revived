@@ -159,6 +159,7 @@
             "SD_SIS_Boost",
             "SD_SIS_Luck",
             "SD_SIS_SelfDamage",
+            "SD_SIS_NoItems",
         };
 
         public static List<ItemInstance> StartingItemSetItems

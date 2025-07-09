@@ -37,7 +37,7 @@ namespace SpeedDemon.CustomItems.CustomItemDefinitions
             );
             ItemLoader.CopyDefaultMeshes("SD_SIS_SelfDamage", "BoostPerMissingHealth");
 
-            ItemFactory.AddItemToDatabase( // s2
+            ItemFactory.AddItemToDatabase( // s3
                 itemName: "SD_SIS_NoItems",
                 rarity: Rarity.Common,
                 title: new UnlocalizedString("Deprived"),
