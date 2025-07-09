@@ -5,26 +5,26 @@ using System.Reflection;
 using Zorro.Settings;
 using Unity.Mathematics;
 using UnityEngine.Localization;
+using SpeedDemon.Difficulties;
 
 namespace SpeedDemon
 {
     [LandfallPlugin]
     public class SpeedDemonMain
     {
-
         static public float playerEndLevelSpeed = 0f;
 
         static SpeedDemonMain()
         {
             Debug.Log("[SpeedDemon] SpeedDemonMain class initializing...");
+
             On.RunHandler.GetLevelSpeed += (orig) => // Custom corruption speed
             {
-                if (RunHandler.RunData.runConfig.isEndless)
+                if (SD_API.InSpeedDemonRun)
                 {
-                    float startingSpeed = GameHandler.Instance.SettingsHandler.GetSetting<SD_StartingSpeedSetting>().Value;
-                    float rampSpeed = GameHandler.Instance.SettingsHandler.GetSetting<SD_RampSpeedSetting>().Value;
+                    float startingSpeed = SD_API.StartingSpeed;
+                    float rampSpeed = SD_API.RampSpeed;
                     float speed = (startingSpeed + rampSpeed * (RunHandler.RunData.currentLevel / 2));
-                    Debug.Log($"Corruption speed is {speed}");
                     return speed;
                 }
                 else
@@ -35,45 +35,71 @@ namespace SpeedDemon
 
             On.PlayerCharacter.PlayerData.GetBoost += (orig, self) => // Override GetBoost to raise the speed limit
             {
-                // A couple of reflections to get the method
-                PlayerCharacter player = (PlayerCharacter)typeof(PlayerCharacter.PlayerData).GetField("player", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self);
-                MethodInfo getValueMethod = typeof(PlayerStat).GetMethod("GetValue", BindingFlags.Instance | BindingFlags.NonPublic);
-                float boostValue = (float)getValueMethod.Invoke(player.player.stats.boost, null);
-                return Mathf.Clamp(self.speedBoost + boostValue, 0f, 25f);
+                if (SD_API.InSpeedDemonRun)
+                {
+                    // A couple of reflections to get the method
+                    PlayerCharacter player = (PlayerCharacter)typeof(PlayerCharacter.PlayerData).GetField("player", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self);
+                    MethodInfo getValueMethod = typeof(PlayerStat).GetMethod("GetValue", BindingFlags.Instance | BindingFlags.NonPublic);
+                    float boostValue = (float)getValueMethod.Invoke(player.player.stats.boost, null);
+                    return Mathf.Clamp(self.speedBoost + boostValue, 0f, 25f);
+                }
+                else return orig(self);
             };
 
             On.ItemInstance.EditCooldown += (orig, self, delta) => // Rough patch for cooldown exploit
             {
-                // Don't let a cooldown reduction lower the cooldown to less than a certain percent remaining
-                float currentCooldown = self.instanceData.GetEntry<CooldownCounterEntry>(null).Value;
-                float newCooldown = Mathf.Max(Mathf.Min(currentCooldown - delta, self.cooldown * 0.9f), currentCooldown);
-                self.instanceData.GetEntry<CooldownCounterEntry>(null).Value = newCooldown;
-                //Debug.Log($"[SpeedDemon] Reduction {delta} increased cooldown counter from {currentCooldown} to {newCooldown}");
+                if (SD_API.InSpeedDemonRun)
+                {
+                    // Don't let a cooldown reduction lower the cooldown to less than a certain percent remaining
+                    float currentCooldown = self.instanceData.GetEntry<CooldownCounterEntry>(null).Value;
+                    float newCooldown = Mathf.Max(Mathf.Min(currentCooldown - delta, self.cooldown * 0.9f), currentCooldown);
+                    self.instanceData.GetEntry<CooldownCounterEntry>(null).Value = newCooldown;
+                    //Debug.Log($"[SpeedDemon] Reduction {delta} increased cooldown counter from {currentCooldown} to {newCooldown}");
+                }
+                else orig(self, delta);
             };
 
             On.LevelGenerator.SetPortalPos += (orig, self) => // Hijacking this method to grab a reference to the portal object as it's being placed
             {                                                 // (There are probably better ways to do this)
-                Portal portal = self.GetComponentInChildren<Portal>();
-                if (portal != null)
+                if (SD_API.InSpeedDemonRun)
                 {
-                    // Make the portal bigger
-                    portal.transform.localScale = new Vector3(4f, 4f, 4f);
-                    // Continue with normal method
-                    SplineGenerator splines = (SplineGenerator)typeof(LevelGenerator).GetField("splines", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self);
-                    typeof(SplineGenerator).GetMethod("SetTransformAtEnd", BindingFlags.Instance | BindingFlags.NonPublic)
-                        .Invoke(splines, [portal.transform]);
+                    Portal portal = self.GetComponentInChildren<Portal>();
+                    if (portal != null)
+                    {
+                        // Make the portal bigger
+                        portal.transform.localScale = new Vector3(4f, 4f, 4f);
+                        // Continue with normal method
+                        SplineGenerator splines = (SplineGenerator)typeof(LevelGenerator).GetField("splines", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self);
+                        typeof(SplineGenerator).GetMethod("SetTransformAtEnd", BindingFlags.Instance | BindingFlags.NonPublic)
+                            .Invoke(splines, [portal.transform]);
+                    }
+                }
+                else orig(self);
+            };
+
+            On.PlayerCharacter.Awake += (orig, self) => // Ensure necessary scripts are on the PlayerCharacter
+            {
+                orig(self);
+                if (SD_API.InSpeedDemonRun)
+                {
+                    Debug.Log($"[SpeedDemon] PlayerCharacter awoke, adding boundary scripts");
+                    self.gameObject.AddComponent<SpeedDemonCeiling>();
+                    self.gameObject.AddComponent<SpeedDemonWalls>();
                 }
             };
 
 
             GM_API.NewLevel += OnNewLevel;
             GM_API.LevelRestart += OnNewLevel;
+
+            GM_API.SpawnedInHub += SetSDEndRunFact;
+            GM_API.StartNewRun += SetSDStartRunFact;
             
 
             On.PersistentPlayerData.ResetToLevelStart += (orig, self) => // See above, we also have to do it if the player dies and restarts the level
             {
                 orig(self);
-                if (RunHandler.RunData.runConfig.isEndless)
+                if (SD_API.InSpeedDemonRun)
                 {   // The game doesn't normally trigger "EnterRunningLevel" triggers on a level restart
                     // That's a problem for us, because builds relying on slingshot will break if you die, so we just call it manually here
                     Player.localPlayer.TriggerItemsOfType(ItemTriggerType.EnterRunningLevel);
@@ -82,48 +108,63 @@ namespace SpeedDemon
 
             On.GM_API.OnPlayerEnteredPortal += (orig, player) =>
             {
-                playerEndLevelSpeed = player.character.refs.rig.velocity.magnitude;
+                if (SD_API.InSpeedDemonRun) playerEndLevelSpeed = player.character.refs.rig.velocity.magnitude;
                 orig(player);
             };
 
-            On.RunHandler.WinRun += (orig, transitionOutOverride, transitionEffectDelay) =>
+            On.RunHandler.WinRun += (orig, transitionOutOverride, transTime) =>
             {
-                playerEndLevelSpeed = 0f;
-                orig(transitionOutOverride, transitionEffectDelay);
+                if (SD_API.InSpeedDemonRun) playerEndLevelSpeed = 0f;
+                orig(transitionOutOverride, transTime);
             };
 
-            On.RunHandler.LoseRun += (orig, transitionOutOverride, transitionEffectDelay) =>
+            On.RunHandler.LoseRun += (orig, transitionOutOverride, transTime) =>
             {
-                playerEndLevelSpeed = 0f;
-                orig(transitionOutOverride, transitionEffectDelay);
+                if (SD_API.InSpeedDemonRun) playerEndLevelSpeed = 0f;
+                orig(transitionOutOverride, transTime);
             };
 
-            On.DifficultyPresetSetting.SetValue += (orig, self, v, settingHandler) =>
+            On.UI_UnlockedItemsScreen.GetItems += (orig, self) =>
             {
-                SD_StartingSpeedSetting sD_StartingSpeedSetting = GameHandler.Instance.SettingsHandler.GetSetting<SD_StartingSpeedSetting>();
-                SD_RampSpeedSetting sD_RampSpeedSetting = GameHandler.Instance.SettingsHandler.GetSetting<SD_RampSpeedSetting>();
-                if (v == DifficultyPresetSetting.Presets.Easy)
-                {
-                    sD_StartingSpeedSetting.SetValue(12f, settingHandler, false);
-                    sD_RampSpeedSetting.SetValue(85f, settingHandler, false);
-                }
-                if (v == DifficultyPresetSetting.Presets.Medium)
-                {
-                    sD_StartingSpeedSetting.SetValue(90f, settingHandler, false);
-                    sD_RampSpeedSetting.SetValue(15f, settingHandler, false);
-                }
-                if (v == DifficultyPresetSetting.Presets.Hard)
-                {
-                    sD_StartingSpeedSetting.SetValue(95f, settingHandler, false);
-                    sD_RampSpeedSetting.SetValue(18f, settingHandler, false);
-                }
-                orig(self, v, settingHandler);
+                self.allItems.Clear();
+                self.allItems.AddRange(CustomItems.SpeedDemonItems.RewardableItems);
+                self.unlockedItems.Clear();
+                self.unlockedItems.AddRange(CustomItems.SpeedDemonItems.RewardableItems);
             };
+
+            On.WorldShard.PlayLevel += (orig, self) =>
+            {
+                if (self.isEndlessShard)
+                {
+                    var config = self.SelectableRunConfigs[2];
+
+                    string jsonConfig = JsonUtility.ToJson(config);
+                    Debug.Log("[SpeedDemon] Selectable Run Config : " + jsonConfig);
+
+                    string jsonRunConfig = JsonUtility.ToJson(config.runConfig);
+                    Debug.Log("[SpeedDemon] Run Config : " + jsonRunConfig);
+
+                    foreach (LevelGenConfig genConf in config.runConfig.categories)
+                    {
+                        string jsonLevenGenConfig = JsonUtility.ToJson(genConf);
+                        Debug.Log("[SpeedDemon] genConf : " + genConf.name + jsonLevenGenConfig);
+                    }
+
+                    string jsonMusicPlaylist = JsonUtility.ToJson(config.runConfig.musicPlaylist);
+                    Debug.Log("[SpeedDemon] MusicPlaylist : " + config.runConfig.musicPlaylist.name + jsonMusicPlaylist);
+                }
+                orig(self);
+            };
+        }
+
+        private static void ShardSettingsUI_Open(On.ShardSettingsUI.orig_Open orig, ShardSettingsUI self, WorldShard worldShard)
+        {
+            throw new NotImplementedException();
         }
 
         private static void OnNewLevel()
         {
-            if (RunHandler.RunData.runConfig.isEndless)
+            if (SD_API.InSpeedDemonRun)
             {
                 float startLevelSpeed = Mathf.Max(playerEndLevelSpeed, PlayerCharacter.localPlayer.refs.rig.velocity.magnitude);
                 Vector3 newVelocity = PlayerCharacter.localPlayer.refs.rig.velocity.normalized * startLevelSpeed;
@@ -132,57 +173,22 @@ namespace SpeedDemon
             }
         }
 
-        public static void TriggerMercyBoost() // Likely remove
+        private static void SetSDStartRunFact()
         {
-            // Minimum mercy amount to help builds with low initial boost
-            float minMercyAmount = 5f * Mathf.Max((RunHandler.RunData.currentLevel - (RunHandler.RunData.MaxLevels + 1) / 2), 0) * GameDifficulty.currentDif.speedRequirement;
-            // Mercy their boost as speed
-            float mercyAmountFromBoost = PlayerCharacter.localPlayer.data.speedBoost * 100;
-            typeof(HelperFunctions).GetMethod("AddStatEffects", BindingFlags.Static | BindingFlags.NonPublic)
-                .Invoke(null, [VariableType.Boost, Mathf.Max(mercyAmountFromBoost, minMercyAmount) / 100, null]);
-            
+            if (RunHandler.RunData.runConfig.isEndless)
+            {
+                Debug.Log($"[SpeedDemon] Speed Demon run is starting, setting fact");
+                SD_API.InSpeedDemonRun = true;
+            }
         }
-    }
 
-    [HasteSetting]
-    public class SD_StartingSpeedSetting : FloatSetting, IExposedSetting, IConditionalSetting
-    {
-        public override void ApplyValue()
+        private static void SetSDEndRunFact()
         {
-            Debug.Log($"[SpeedDemon] Setting Starting Speed to {Value}");
-        }
-        protected override float GetDefaultValue() => 90f;
-        protected override float2 GetMinMaxValue() => new float2(80f, 100f);
-        public LocalizedString GetDisplayName() => new UnlocalizedString("[SD] Collapse Starting Speed");
-        public string GetCategory() => "Difficulty";
-        public override string Expose(float result)
-        {
-            return Mathf.RoundToInt(result).ToString() + "m/s";
-        }
-        public bool CanShow()
-        {
-            return GameDifficulty.CanChangeSettings();
-        }
-    }
-
-    [HasteSetting]
-    public class SD_RampSpeedSetting : FloatSetting, IExposedSetting, IConditionalSetting
-    {
-        public override void ApplyValue()
-        {
-            Debug.Log($"[SpeedDemon] Setting Ramp Speed to {Value}");
-        }
-        protected override float GetDefaultValue() => 15f;
-        protected override float2 GetMinMaxValue() => new float2(10f, 20f);
-        public LocalizedString GetDisplayName() => new UnlocalizedString("[SD] Collapse Ramp Speed");
-        public string GetCategory() => "Difficulty";
-        public override string Expose(float result)
-        {
-            return Mathf.RoundToInt(result).ToString() + "m/s";
-        }
-        public bool CanShow()
-        {
-            return GameDifficulty.CanChangeSettings();
+            if (SD_API.InSpeedDemonRun)
+            {
+                Debug.Log($"[SpeedDemon] Speed Demon run has ended, setting fact");
+                SD_API.InSpeedDemonRun = false;
+            }
         }
     }
 }
