@@ -1,8 +1,10 @@
-﻿using UnityEngine;
+﻿using Landfall.Modding;
+using UnityEngine;
 
 namespace SpeedDemon
 {
-    public class SpeedDemonCeiling : MonoBehaviour
+    [LandfallPlugin]
+    public class SpeedDemonCeiling
     {
         public static float softHeight = 180f;
         public static float hardHeight = 240f;
@@ -12,39 +14,44 @@ namespace SpeedDemon
         public static float timeSinceSoftLerp = 10f;
         public static float maxSoftLerpFrequency = 0.025f;
 
-        void Update()
+        static SpeedDemonCeiling()
         {
-            // If player is too high, force them to start diving a bit
-            RaycastHit[] rayHitMap = GetGroundRays(PlayerCharacter.localPlayer.transform.position, 32, rayRadius, 3000f);
-            bool isAboveGround = IsAboveGround(rayHitMap, 0.45f);
-            float distanceAboveGround = DistanceAboveGround(rayHitMap, isAboveGround);
-            if (distanceAboveGround > hardHeight)
+            Debug.Log("[SpeedDemon] SpeedDemonCeiling class initializing...");
+            On.GM_Run.Update += (orig, self) =>
             {
-                Vector3 newVelocity = EnsureDownwardVelocity(PlayerCharacter.localPlayer.refs.rig.velocity, -2f);
-                PlayerCharacter.localPlayer.refs.rig.velocity = newVelocity;
-                //Debug.Log($"[SpeedDemon] Player hit hard ceiling, setting velocity vector to {newVelocity}");
-                //Debug.Log($"[SpeedDemon] isAboveGround is {isAboveGround}");
-                //Debug.Log($"[SpeedDemon] distanceAboveGround is {distanceAboveGround}");
-            }
-            if (distanceAboveGround > softHeight && timeSinceSoftLerp > maxSoftLerpFrequency)
-            {
-                timeSinceSoftLerp = 0f;
-                Vector3 newVelocity = LerpedLerpVelocity(
-                    PlayerCharacter.localPlayer.refs.rig.velocity,
-                    PlayerCharacter.localPlayer.refs.rig.position,
-                    0f,
-                    0.05f,
-                    -10f
-                );
-                PlayerCharacter.localPlayer.refs.rig.velocity = newVelocity;
-                //Debug.Log($"[SpeedDemon] Player hit soft ceiling, setting velocity vector to {newVelocity}");
-                //Debug.Log($"[SpeedDemon] isAboveGround is {isAboveGround}");
-                //Debug.Log($"[SpeedDemon] distanceAboveGround is {distanceAboveGround}");
-            }
-            timeSinceSoftLerp += Time.deltaTime;
+                // If player is too high, force them to start diving a bit
+                RaycastHit[] rayHitMap = GetGroundRays(PlayerCharacter.localPlayer.transform.position, 32, rayRadius, 3000f);
+                bool isAboveGround = IsAboveGround(rayHitMap, 0.45f);
+                float distanceAboveGround = DistanceAboveGround(rayHitMap, isAboveGround);
+                if (distanceAboveGround > hardHeight)
+                {
+                    Vector3 newVelocity = EnsureDownwardVelocity(PlayerCharacter.localPlayer.refs.rig.linearVelocity, -2f);
+                    PlayerCharacter.localPlayer.refs.rig.linearVelocity = newVelocity;
+                    //Debug.Log($"[SpeedDemon] Player hit hard ceiling, setting velocity vector to {newVelocity}");
+                    //Debug.Log($"[SpeedDemon] isAboveGround is {isAboveGround}");
+                    //Debug.Log($"[SpeedDemon] distanceAboveGround is {distanceAboveGround}");
+                }
+                if (distanceAboveGround > softHeight && timeSinceSoftLerp > maxSoftLerpFrequency)
+                {
+                    timeSinceSoftLerp = 0f;
+                    Vector3 newVelocity = LerpedLerpVelocity(
+                        PlayerCharacter.localPlayer.refs.rig.linearVelocity,
+                        PlayerCharacter.localPlayer.refs.rig.position,
+                        0f,
+                        0.05f,
+                        -10f
+                    );
+                    PlayerCharacter.localPlayer.refs.rig.linearVelocity = newVelocity;
+                    //Debug.Log($"[SpeedDemon] Player hit soft ceiling, setting velocity vector to {newVelocity}");
+                    //Debug.Log($"[SpeedDemon] isAboveGround is {isAboveGround}");
+                    //Debug.Log($"[SpeedDemon] distanceAboveGround is {distanceAboveGround}");
+                }
+                timeSinceSoftLerp += Time.deltaTime;
+                orig(self);
+            };
         }
 
-        private static bool rayHitGround(RaycastHit hit)
+        public static bool rayHitGround(RaycastHit hit)
         {
             return hit.collider != null && hit.point.y >= minimumMapHeight;
         }
@@ -188,7 +195,8 @@ namespace SpeedDemon
     }
 
 
-    public class SpeedDemonWalls : MonoBehaviour
+    [LandfallPlugin]
+    public class SpeedDemonWalls
     {
         public static float rayHeightAdjustment = 400f; // Make sure no rays start clipping into ground
         public static float minimumMapHeight = -150f;
@@ -198,24 +206,29 @@ namespace SpeedDemon
         //public static int rayFallbackStepCount = 4;
         //public static float rayFallbackPercent = 0.7f;
 
-        void Update()
+        static SpeedDemonWalls()
         {
-            RaycastHit[] rayHitMap = GetGroundRays(PlayerCharacter.localPlayer.transform.position, 64, 200f, 1500f);
-            //Vector3? correctionVector = GetCorrectionVector(rayHitMap, 0.48f);
-            Vector3? correctionVector = GetCorrectionVectorWithFallback(rayHitMap, 0.48f);
-            //Vector3? correctionVector = GetCorrectionVectorNew();
-            if (correctionVector != null)
+            Debug.Log("[SpeedDemon] SpeedDemonWalls class initializing...");
+            On.GM_Run.Update += (orig, self) =>
             {
-                //correctionTimer = 0f;
-                //Vector3 newVelocity = CorrectHorizontalVelocity(PlayerCharacter.localPlayer.refs.rig.velocity, (Vector3)correctionVector, 0.25f);
-                Vector3 newVelocity = ClampYawWithCorrectionVector(PlayerCharacter.localPlayer.refs.rig.velocity, (Vector3)correctionVector, 88f);
-                PlayerCharacter.localPlayer.refs.rig.velocity = newVelocity;
-                //Debug.Log($"[SpeedDemon] Player hit a wall, setting velocity vector to {newVelocity}");
-                //Debug.Log($"[SpeedDemon] correctionVector is {correctionVector.Value}");
-            }
+                RaycastHit[] rayHitMap = GetGroundRays(PlayerCharacter.localPlayer.transform.position, 64, 200f, 1500f);
+                //Vector3? correctionVector = GetCorrectionVector(rayHitMap, 0.48f);
+                Vector3? correctionVector = GetCorrectionVectorWithFallback(rayHitMap, 0.48f);
+                //Vector3? correctionVector = GetCorrectionVectorNew();
+                if (correctionVector != null)
+                {
+                    //correctionTimer = 0f;
+                    //Vector3 newVelocity = CorrectHorizontalVelocity(PlayerCharacter.localPlayer.refs.rig.velocity, (Vector3)correctionVector, 0.25f);
+                    Vector3 newVelocity = ClampYawWithCorrectionVector(PlayerCharacter.localPlayer.refs.rig.linearVelocity, (Vector3)correctionVector, 88f);
+                    PlayerCharacter.localPlayer.refs.rig.linearVelocity = newVelocity;
+                    //Debug.Log($"[SpeedDemon] Player hit a wall, setting velocity vector to {newVelocity}");
+                    //Debug.Log($"[SpeedDemon] correctionVector is {correctionVector.Value}");
+                }
+                orig(self);
+            };
         }
 
-        private static bool rayHitGround(RaycastHit hit)
+        public static bool rayHitGround(RaycastHit hit)
         {
             return hit.collider != null && hit.point.y >= minimumMapHeight;
         }
@@ -351,5 +364,6 @@ namespace SpeedDemon
             // Restore original Y component
             return new Vector3(finalXZ.x, velocity.y, finalXZ.z);
         }
+
     }
 }
